@@ -1,0 +1,85 @@
+{
+  "counts": {
+    "collection": {
+      "秋起美术馆": 267,
+      "素材库": 1938
+    },
+    "format": {
+      "7z": 8,
+      "dds": 41,
+      "doc": 2,
+      "docx": 14,
+      "jpg": 18,
+      "md": 1,
+      "mp4": 9,
+      "pdn": 27,
+      "png": 1449,
+      "psd": 607,
+      "rar": 7,
+      "txt": 6,
+      "xcf": 6,
+      "zip": 10
+    },
+    "icon_type": {
+      "event": 2,
+      "flag": 18,
+      "focus": 1801,
+      "idea": 64,
+      "ideology": 88,
+      "map": 22,
+      "portrait": 57,
+      "super_event": 2,
+      "unknown": 151
+    },
+    "readiness": {
+      "archive_only": 25,
+      "composite": 1872,
+      "direct_with_credit": 61,
+      "reference_only": 247
+    },
+    "role": {
+      "archive": 25,
+      "background": 500,
+      "component": 1045,
+      "editable_source": 272,
+      "finished": 133,
+      "palette": 8,
+      "reference": 14,
+      "reference_asset": 29,
+      "template": 121,
+      "tutorial": 58
+    },
+    "style": {
+      "red-flood": 92,
+      "tfr": 67,
+      "tno": 22,
+      "unknown": 80,
+      "vanilla": 1944
+    }
+  },
+  "excluded": {
+    "exe": 3,
+    "lnk": 1
+  },
+  "hash_errors": 0,
+  "image_metadata_errors": 0,
+  "indexed": 2205,
+  "missing_collections": [],
+  "pillow_available": true,
+  "quality_flags": {
+    "archive_not_extracted": 25,
+    "creator_unknown": 72,
+    "credit_required": 61,
+    "dimensions_unavailable": 33,
+    "extension_payload_mismatch": 7,
+    "icon_type_unknown": 151,
+    "license_unknown": 267,
+    "name_needs_normalization": 5,
+    "opaque_raster": 17,
+    "outdated": 10,
+    "preview_conversion_required": 36,
+    "preview_missing": 547,
+    "style_unknown": 80
+  },
+  "skipped_symlinks": 0
+}

@@ -1,0 +1,239 @@
+{
+  "schema_version": 1,
+  "style_aliases": {
+    "tfr": [
+      "tfr",
+      "the fire rises",
+      "烈焰升腾",
+      "火焰升腾"
+    ],
+    "tno": [
+      "tno",
+      "the new order",
+      "新秩序"
+    ],
+    "red-flood": [
+      "red flood",
+      "red_flood",
+      "赤潮"
+    ],
+    "vanilla": [
+      "vanilla",
+      "original",
+      "原版"
+    ]
+  },
+  "icon_type_aliases": {
+    "technology": [
+      "technology",
+      "technologies",
+      "research",
+      "tech icon",
+      "科技",
+      "科技图标"
+    ],
+    "focus": [
+      "focus",
+      "focus icon",
+      "goal",
+      "国策",
+      "国策图标"
+    ],
+    "idea": [
+      "idea",
+      "ideas",
+      "national spirit",
+      "nat ideas",
+      "国家精神",
+      "民族精神"
+    ],
+    "ideology": [
+      "ideology",
+      "ideological",
+      "意识形态"
+    ],
+    "portrait": [
+      "portrait",
+      "leader",
+      "minister",
+      "肖像",
+      "头像",
+      "领导人"
+    ],
+    "event": [
+      "event",
+      "事件"
+    ],
+    "super_event": [
+      "super event",
+      "超事件"
+    ],
+    "flag": [
+      "flag",
+      "旗帜",
+      "国旗"
+    ],
+    "map": [
+      "map",
+      "地图"
+    ]
+  },
+  "role_aliases": {
+    "finished": [
+      "finished",
+      "final",
+      "result",
+      "结果",
+      "现成素材"
+    ],
+    "tutorial": [
+      "tutorial",
+      "guide",
+      "教程"
+    ],
+    "palette": [
+      "palette",
+      "color card",
+      "colour card",
+      "调色板",
+      "色卡",
+      "色号"
+    ],
+    "template": [
+      "template",
+      "模板"
+    ],
+    "background": [
+      "background",
+      "base",
+      "frame",
+      "laurel",
+      "wreath",
+      "底面",
+      "底图",
+      "背景",
+      "边框",
+      "桂冠"
+    ],
+    "reference": [
+      "reference",
+      "参考"
+    ]
+  },
+  "semantic_tags": {
+    "air": [
+      "aircraft",
+      "air force",
+      "airforce",
+      "fighter",
+      "bomber",
+      "plane",
+      "航空",
+      "空军",
+      "飞机"
+    ],
+    "army": [
+      "army",
+      "soldier",
+      "infantry",
+      "artillery",
+      "tank",
+      "military",
+      "陆军",
+      "士兵",
+      "步兵",
+      "火炮",
+      "坦克",
+      "军事"
+    ],
+    "diplomacy": [
+      "diplomacy",
+      "alliance",
+      "treaty",
+      "外交",
+      "联盟",
+      "条约"
+    ],
+    "economy": [
+      "economy",
+      "economic",
+      "money",
+      "cash",
+      "trade",
+      "经济",
+      "货币",
+      "贸易"
+    ],
+    "flag": [
+      "flag",
+      "banner",
+      "国旗",
+      "旗帜"
+    ],
+    "industry": [
+      "industry",
+      "industrial",
+      "factory",
+      "production",
+      "工业",
+      "工厂",
+      "生产"
+    ],
+    "infrastructure": [
+      "infrastructure",
+      "railroad",
+      "railway",
+      "road",
+      "交通",
+      "铁路",
+      "公路"
+    ],
+    "building": [
+      "building",
+      "architecture",
+      "modern building",
+      "建筑",
+      "大楼",
+      "城市建筑"
+    ],
+    "law": [
+      "law",
+      "legal",
+      "法律"
+    ],
+    "navy": [
+      "navy",
+      "naval",
+      "ship",
+      "submarine",
+      "海军",
+      "舰船",
+      "潜艇"
+    ],
+    "nuclear": [
+      "nuclear",
+      "nuke",
+      "atomic",
+      "核武器",
+      "核能"
+    ],
+    "politics": [
+      "politics",
+      "political",
+      "parliament",
+      "government",
+      "政治",
+      "议会",
+      "政府"
+    ],
+    "science": [
+      "science",
+      "scientific",
+      "research",
+      "laboratory",
+      "科技",
+      "科研",
+      "实验室"
+    ]
+  }
+}

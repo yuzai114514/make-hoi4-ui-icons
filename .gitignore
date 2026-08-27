@@ -1,0 +1,14 @@
+# Local material libraries and machine-specific agent state
+/素材库/
+/秋起美术馆/
+/.agents/
+/.codex/
+
+# Task-local outputs and development evidence
+/output/
+/tmp/
+/ITERATION_LOG.md
+
+# Python caches
+**/__pycache__/
+*.py[cod]
