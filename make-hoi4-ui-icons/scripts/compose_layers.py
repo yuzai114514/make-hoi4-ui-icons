@@ -23,7 +23,7 @@ except ImportError as exc:  # pragma: no cover - environment-dependent
 SCHEMA_VERSION = 1
 BLEND_MODES = {"normal", "screen", "multiply"}
 THEME_ROLES = {"primary", "secondary", "background", "context"}
-BOUNDARY_TYPES = {"outline", "feather", "shadow", "relief"}
+BOUNDARY_TYPES = {"outline", "feather", "shadow", "relief", "outer_glow"}
 EFFECT_KINDS = {"narrative"}
 BRIEF_INPUT_MODES = {"human", "ai"}
 INPUT_BASIS_VALUES = {"provided", "derived", "missing"}
@@ -231,7 +231,9 @@ def transform_source(image: Image.Image, transform: dict[str, Any], label: str) 
     return transformed, x, y
 
 
-def validate_source(path: Path, label: str) -> Image.Image:
+def validate_source(path: Path, label: str, chroma_key: str = "none") -> Image.Image:
+    if chroma_key not in {"none", "green", "magenta"}:
+        raise ValueError(f"{label}.chroma_key must be none, green, or magenta")
     try:
         with Image.open(path) as raw:
             raw.load()
@@ -245,6 +247,12 @@ def validate_source(path: Path, label: str) -> Image.Image:
         raise ValueError(f"{label} must be a PNG")
     if image.getchannel("A").getbbox() is None:
         raise ValueError(f"{label} contains no visible pixels")
+    if image.getchannel("A").getextrema()[0] > 0:
+        raise ValueError(f"{label} has no fully transparent pixels")
+    green, magenta = count_key_colors(image)
+    count = green if chroma_key == "green" else magenta if chroma_key == "magenta" else 0
+    if count:
+        raise ValueError(f"{label} contains {count} visible chroma-key-{chroma_key} pixels")
     return image
 
 
@@ -264,16 +272,7 @@ def boundary_margin(boundary: dict[str, Any], finish: dict[str, Any], label: str
             f"{label}.boundary has unknown entries: {', '.join(sorted(unknown_boundary))}"
         )
     margins = [0]
-    primary_type, primary = parse_effect(boundary.get("primary"), f"{label}.boundary.primary", allowed=BOUNDARY_TYPES)
-    support_raw = boundary.get("support")
-    effects = [(primary_type, primary)]
-    if support_raw is not None:
-        support_type, support = parse_effect(
-            support_raw, f"{label}.boundary.support", allowed=BOUNDARY_TYPES
-        )
-        if support_type == primary_type:
-            raise ValueError(f"{label} boundary primary and support must use different types")
-        effects.append((support_type, support))
+    effects = selected_boundaries(boundary, label)
 
     for effect_type, config in effects:
         if effect_type == "outline":
@@ -295,6 +294,16 @@ def boundary_margin(boundary: dict[str, Any], finish: dict[str, Any], label: str
         elif effect_type == "relief":
             margins.append(require_int(config.get("depth"), f"{label}.relief.depth", minimum=1) + 1)
             require_number(config.get("opacity", 0.2), f"{label}.relief.opacity", minimum=0, maximum=1)
+        elif effect_type == "outer_glow":
+            spread = require_int(config.get("spread", 0), f"{label}.outer_glow.spread", minimum=0)
+            if spread > 20:
+                raise ValueError(f"{label}.outer_glow.spread must be at most 20")
+            blur = require_number(config.get("blur"), f"{label}.outer_glow.blur", minimum=0.1, maximum=30)
+            margins.append(math.ceil(spread + blur * 3 + 1))
+            parse_color(config.get("color"), f"{label}.outer_glow.color")
+            require_number(config.get("opacity", 1), f"{label}.outer_glow.opacity", minimum=0, maximum=1)
+            if require_string(config.get("blend", "normal"), f"{label}.outer_glow.blend") not in BLEND_MODES:
+                raise ValueError(f"{label}.outer_glow.blend must be normal, screen, or multiply")
 
     if not isinstance(finish, dict):
         raise ValueError(f"{label}.finish must be an object")
@@ -306,15 +315,29 @@ def boundary_margin(boundary: dict[str, Any], finish: dict[str, Any], label: str
         if not isinstance(config, dict):
             raise ValueError(f"{label}.finish.relief must be an object")
         margins.append(require_int(config.get("depth"), f"{label}.finish.relief.depth", minimum=1) + 1)
-        require_number(config.get("opacity", 0.15), f"{label}.finish.relief.opacity", minimum=0, maximum=0.35)
+        require_number(config.get("opacity", 0.15), f"{label}.finish.relief.opacity", minimum=0, maximum=1)
     if "rim" in finish:
         config = finish["rim"]
         if not isinstance(config, dict):
             raise ValueError(f"{label}.finish.rim must be an object")
         margins.append(require_int(config.get("width"), f"{label}.finish.rim.width", minimum=1) + 1)
         parse_color(config.get("color"), f"{label}.finish.rim.color")
-        require_number(config.get("opacity", 0.12), f"{label}.finish.rim.opacity", minimum=0, maximum=0.3)
+        require_number(config.get("opacity", 0.12), f"{label}.finish.rim.opacity", minimum=0, maximum=1)
     return max(margins)
+
+
+def selected_boundaries(boundary: dict[str, Any], label: str) -> list[tuple[str, dict[str, Any]]]:
+    """Legacy slots remain supported, but neither slot is an artistic requirement."""
+    effects = []
+    for slot in ("primary", "support"):
+        if slot in boundary:
+            # Older specs used support: null to omit the secondary effect.
+            if slot == "support" and boundary[slot] is None:
+                continue
+            effects.append(parse_effect(boundary[slot], f"{label}.boundary.{slot}", allowed=BOUNDARY_TYPES))
+    if len(effects) == 2 and effects[0][0] == effects[1][0]:
+        raise ValueError(f"{label} boundary primary and support must use different types")
+    return effects
 
 
 def build_relief(alpha: Image.Image, depth: int, opacity: float) -> Image.Image:
@@ -362,13 +385,14 @@ def render_theme(
     transform = theme.get("transform")
     if not isinstance(transform, dict):
         raise ValueError(f"{label}.transform must be an object")
-    boundary = theme.get("boundary")
+    boundary = theme.get("boundary", {})
     if not isinstance(boundary, dict):
         raise ValueError(f"{label}.boundary must be an object")
     finish = theme.get("finish", {})
     margin = boundary_margin(boundary, finish, label)
 
-    source = validate_source(source_path, f"{label}.source")
+    chroma_key = theme.get("chroma_key", "none")
+    source = validate_source(source_path, f"{label}.source", chroma_key)
     transformed, x, y = transform_source(source, transform, label)
     local = Image.new(
         "RGBA", (transformed.width + 2 * margin, transformed.height + 2 * margin), (0, 0, 0, 0)
@@ -376,13 +400,7 @@ def render_theme(
     local.alpha_composite(transformed, (margin, margin))
     base_alpha = local.getchannel("A")
 
-    primary_type, primary = parse_effect(boundary["primary"], f"{label}.boundary.primary", allowed=BOUNDARY_TYPES)
-    selected: list[tuple[str, dict[str, Any]]] = [(primary_type, primary)]
-    if boundary.get("support") is not None:
-        support_type, support = parse_effect(
-            boundary["support"], f"{label}.boundary.support", allowed=BOUNDARY_TYPES
-        )
-        selected.append((support_type, support))
+    selected = selected_boundaries(boundary, label)
 
     effect_components: list[tuple[str, Image.Image, str, int]] = []
     processed_base = local.copy()
@@ -416,17 +434,25 @@ def render_theme(
             depth = require_int(config.get("depth"), f"{label}.relief.depth", minimum=1)
             effect_opacity = require_number(config.get("opacity", 0.2), f"{label}.relief.opacity", minimum=0, maximum=1)
             effect_components.append(("relief", build_relief(base_alpha, depth, effect_opacity), "normal", 3))
+        elif effect_type == "outer_glow":
+            spread = config.get("spread", 0)
+            expanded = base_alpha.filter(ImageFilter.MaxFilter(spread * 2 + 1)) if spread else base_alpha
+            halo = expanded.filter(ImageFilter.GaussianBlur(config["blur"]))
+            # A soft exterior halo, not a hard ring or the source's internal shading.
+            halo = ImageChops.subtract(halo, base_alpha)
+            glow = color_layer(halo, parse_color(config["color"], f"{label}.outer_glow.color"), config.get("opacity", 1))
+            effect_components.append(("outer-glow", glow, config.get("blend", "normal"), 1))
 
     if "relief" in finish:
         config = finish["relief"]
         depth = require_int(config.get("depth"), f"{label}.finish.relief.depth", minimum=1)
-        effect_opacity = require_number(config.get("opacity", 0.15), f"{label}.finish.relief.opacity", minimum=0, maximum=0.35)
+        effect_opacity = require_number(config.get("opacity", 0.15), f"{label}.finish.relief.opacity", minimum=0, maximum=1)
         effect_components.append(("finish-relief", build_relief(base_alpha, depth, effect_opacity), "normal", 3))
     if "rim" in finish:
         config = finish["rim"]
         width = require_int(config.get("width"), f"{label}.finish.rim.width", minimum=1)
         color = parse_color(config.get("color"), f"{label}.finish.rim.color")
-        effect_opacity = require_number(config.get("opacity", 0.12), f"{label}.finish.rim.opacity", minimum=0, maximum=0.3)
+        effect_opacity = require_number(config.get("opacity", 0.12), f"{label}.finish.rim.opacity", minimum=0, maximum=1)
         expanded = base_alpha.filter(ImageFilter.MaxFilter(width * 2 + 1))
         mask = ImageChops.subtract(expanded, base_alpha)
         effect_components.append(("finish-rim", color_layer(mask, color, effect_opacity), "screen", 4))
@@ -499,6 +525,7 @@ def render_theme(
         "evidence": evidence,
         "source": relative_path(source_path, root),
         "source_asset_ids": source_asset_ids,
+        "chroma_key": chroma_key,
         "z": z,
         "blend": blend,
         "rendered_bbox": [left, top, right, bottom],
@@ -537,7 +564,8 @@ def render_narrative_effect(
     transform = effect.get("transform")
     if not isinstance(transform, dict):
         raise ValueError(f"{label}.transform must be an object")
-    source = validate_source(source_path, f"{label}.source")
+    chroma_key = effect.get("chroma_key", "none")
+    source = validate_source(source_path, f"{label}.source", chroma_key)
     transformed, x, y = transform_source(source, transform, label)
     bbox = transformed.getchannel("A").getbbox()
     if bbox is None:
@@ -573,6 +601,7 @@ def render_narrative_effect(
         "kind": kind,
         "source": relative_path(source_path, root),
         "source_asset_ids": source_asset_ids,
+        "chroma_key": chroma_key,
         "z": z,
         "blend": blend,
         "rendered_bbox": rendered_bbox,
@@ -794,8 +823,8 @@ def validate_resolved_brief(brief: dict[str, Any], spec: dict[str, Any]) -> None
     themes = brief.get("themes")
     if not isinstance(themes, list):
         raise ValueError("brief.themes must be an array")
-    if not 2 <= len(themes) <= 4:
-        raise ValueError("brief.themes must contain two to four semantic themes")
+    if not themes:
+        raise ValueError("brief.themes must contain at least one material layer")
     seen_theme_ids: set[str] = set()
     for position, raw_theme in enumerate(themes, start=1):
         label = f"brief.themes[{position}]"
@@ -864,8 +893,8 @@ def validate_spec_header(
     if safe_bottom >= height:
         raise ValueError("canvas.safe_bottom must be smaller than canvas.height")
     if style == "tfr" and icon_type == "focus" and spec.get("profile") == "focus-tfr":
-        if (width, height, safe_bottom) != (180, 150, 40):
-            raise ValueError("focus-tfr canvas must be 180x150 with safe_bottom 40")
+        if width not in {170, 210} or (height, safe_bottom) != (150, 40):
+            raise ValueError("focus-tfr canvas must be 170x150 or 210x150 with safe_bottom 40")
     brief_payload: dict[str, Any] | None = None
     if "brief" in spec:
         brief_path = resolve_spec_relative(
@@ -906,7 +935,7 @@ def validate_brief_alignment(
         composition_theme_ids.append(theme_id)
         evidence = require_string(raw_theme.get("evidence"), f"themes[{position}].evidence")
         if theme_id not in theme_contracts:
-            raise ValueError(f"themes[{position}] is not grounded in brief.json: {theme_id}")
+            raise ValueError(f"themes[{position}] is not declared in brief.json: {theme_id}")
         brief_theme = theme_contracts[theme_id]
         for field in ("name", "role", "evidence"):
             composition_value = require_string(
@@ -944,7 +973,7 @@ def validate_brief_alignment(
         effect_id = require_string(raw_effect.get("id"), f"effects[{position}].id")
         composition_effect_ids.append(effect_id)
         if effect_id not in effect_contracts:
-            raise ValueError(f"effects[{position}] is not grounded in brief.json: {effect_id}")
+            raise ValueError(f"effects[{position}] is not declared in brief.json: {effect_id}")
         brief_effect = effect_contracts[effect_id]
         for field in ("name", "kind"):
             composition_value = require_string(
@@ -971,8 +1000,6 @@ def render_spec(spec_path: Path, root: Path) -> tuple[Image.Image, dict[str, Any
         raise ValueError("themes must be an array")
     style = spec["style"]
     icon_type = spec["icon_type"]
-    if style == "tfr" and icon_type == "focus" and not 2 <= len(themes) <= 4:
-        raise ValueError("a layered TFR focus requires two to four semantic themes")
     if not themes:
         raise ValueError("at least one theme is required")
 
@@ -1043,12 +1070,8 @@ def render_spec(spec_path: Path, root: Path) -> tuple[Image.Image, dict[str, Any
     )
     if safe_bottom_alpha_max > safe_bottom_limit:
         errors.append("composite has visible pixels in the title-safe area")
-    if key_green_pixels:
-        errors.append(f"composite contains {key_green_pixels} visible chroma-key-green pixels")
-    if key_magenta_pixels:
-        errors.append(
-            f"composite contains {key_magenta_pixels} visible chroma-key-magenta pixels"
-        )
+    # Each source was checked against its own key before composition. A color
+    # keyed out of one layer can legitimately be the subject of another layer.
     if errors:
         raise ValueError("; ".join(errors))
 

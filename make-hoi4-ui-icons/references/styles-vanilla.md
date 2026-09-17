@@ -2,9 +2,11 @@
 
 Use the target project's vanilla-era examples first. Treat the local library as composition evidence, not as a license to redistribute it.
 
+For focuses, use the shared [design references](../SKILL.md#国策设计参考); the motifs below are options for expressing the theme.
+
 ## Direct the image
 
-- Build one immediately readable central symbol, figure, vehicle, building, or scene.
+- Establish an immediately readable visual focus with a symbol, figure, vehicle, building, or scene; placement follows the theme.
 - Integrate the subject into a period military-poster or painted-illustration treatment.
 - Use restrained military colors, burnished metal, painted highlights, firm shadows, and moderate contrast.
 - Use wreaths, shields, ribbons, medals, gears, stars, flags, or heraldic frames only when they support the meaning.
@@ -15,12 +17,12 @@ Use the target project's vanilla-era examples first. Treat the local library as 
 
 - Avoid TFR-like neon, modern thumbnail composition, and aggressive glow.
 - Avoid TNO-like near-black grading and exaggerated frame breaking.
-- Avoid flat vector clip art, photographic cutout edges, embedded labels, and decorative clutter.
+- Avoid flat vector clip art, photographic cutout edges, illegible lettering, and decorative clutter.
 - Do not force every icon into the same wreath or frame.
 
 ## Technical boundary
 
-Select dimensions from the target project's nearest same-type asset. Local focus references frequently use `100x88` and idea references frequently use `60x68`, but the library contains exceptions; use those values only as documented fallback profiles.
+Use the exact canvas sizes in [icon-types.md](icon-types.md). Source-library dimensions guide reference inspection, not the export size; derive dimensions from the target project only for unlisted types.
 
 Evidence paths relative to the library root:
 

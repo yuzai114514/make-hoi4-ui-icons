@@ -20,7 +20,13 @@ Assign one state to every candidate:
 - `unknown`: set `use = reference_only`. Do not copy, crop, recolor, composite, export, or ship the file.
 - `forbidden`: do not inspect beyond what is necessary to identify and exclude it.
 
-Treat missing provenance as `unknown`, never as implied permission.
+Treat missing provenance as `unknown`, never as implied permission. A folder name is not authorization.
+
+## Authorization snapshots for indexing
+
+`build_index.py` defaults every unverified file to `unknown`. To retain earlier approvals, supply `--permissions-index` with a reviewed JSONL snapshot. Each approved entry needs `relative_path`, `content_hash` (`sha256:...`), `reuse_policy`, `authorization_evidence`, and the required `creator` when credit is required. Evidence is a library-relative license path or a concise record of explicit user permission. Entries without evidence, changed contents, and new filenames do not inherit approval. Record actual authorization after reading its source; do not generate approval records from directory names.
+
+The bundled index's existing AoM approvals are tied to the reviewed `素材库/README.md` terms and the exact files in that snapshot. The terms do not automatically apply to later additions or unrelated libraries with the same directory names. Per-result `sources.json` still uses the six-field contract below; index evidence is not an extra field in that contract.
 
 ## Library boundary
 

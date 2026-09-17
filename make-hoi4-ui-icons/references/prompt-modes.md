@@ -1,91 +1,58 @@
-# Prompt modes
+# 输入方式
 
-Resolve every request into one internal brief. Keep the two input modes distinct.
+自然语言和结构化输入都用于理解用户意图。内部记录服务于制作与复现，不应让创作者为了填表或凑主题改变画面。
 
 ## Human mode
 
-Accept one natural-language request. Extract explicit facts, then complete omitted fields automatically. Do not require the user to fill a schema.
+从自然语言确定图标类型、风格、主体、用途与明确约束。用户提供国策代码与文案时，从已有信息读取名称、描述、前置和分支语境及实际效果，提炼要表达的政策、动作或变化；缺省的构图、象征、配色和情绪由 AI 选择，不要求用户先补齐表格或给出美术方案。
 
-Resolve, in order:
+结合前文理解“拆这张图”“再做一遍”等简短指令，沿用已确定的用途、风格、尺寸、参考与工具限制，最新明确要求优先。已在制作成品图标时，拆层是中间步骤，应继续完成风格加工、合成与验收；用户明确只要拆层、原料或分析时，则按该范围交付。不要求用户重复说明已知条件。
 
-1. `icon_type`
-2. `style`
-3. `focus_name` and `focus_description` when present
-4. `subject` and intended meaning
-5. `symbols`
-6. `composition`
-7. `palette` and `mood`
-8. `reuse`
-9. `target_profile`
-10. `output_name` and requested deliverables
+代码用于核对含义和实现状态，画面不必逐项翻译数值奖励。区分叙事目标、注释或提示文字与实际生效效果，避免把未实装奖励画成已取得的收益；只有名称或描述时也可继续合理设计，不把完整代码设为制作前提。
 
-Give explicit user wording priority over inference. Use `vanilla` only when no style is stated or implied. Use the nearest target-project icon type when context identifies one; otherwise use `focus` and disclose that resolution in the brief. Set `reuse = prefer` unless the user requires or forbids reuse. Resolve the technical profile by the priority in `icon-types.md`.
+- 没有明示或暗示风格时用 `vanilla`；无法从项目识别类型时用 `focus`，在记录中注明推定。
+- 有国策名和描述就使用；缺失项记录为 `null`，不为了凑层数追问。用现有信息完成合理构图。
+- 默认 `reuse=prefer`，尊重用户要求的 `require|forbid`。
+- 技术尺寸按 [icon-types.md](icon-types.md) 的优先级解析；只有会实质改变任务的问题或无法解决的矛盾才需要澄清。
 
-For `style=tfr` and `icon_type=focus`, read [layered-tfr.md](layered-tfr.md).
-Treat the focus name as metaphor and mood evidence and the description as event,
-object, causal, and setting evidence. Write a task-local `brief.json` with two
-to four grounded themes. If either the name or description is missing, use the
-available input conservatively and record the missing field as `null` with an
-`input_basis` value of `missing`. Ask only when the available sentence cannot
-support two grounded semantic themes.
+国策的主题表达、分层、文字和邻图协调统一见 [国策设计参考](../SKILL.md#国策设计参考)；TFR 制作流程见 [layered-tfr.md](layered-tfr.md)。素材的 `evidence` 可写用户原意、参考依据或设计理由，不把每个艺术选择当成需要用户授权的新增叙事。
 
-Ask only when a contradiction prevents a valid deliverable. Otherwise choose the smallest coherent interpretation and proceed.
+收到审美反馈时，先将其转成画面中可检查的问题，再选择修改方法。例如“没有力量感”可检查姿态、受力方向、接触点、明暗结构和动作后果，不能直接等同于增加锐化、亮度或发光。结合当前图像判断相关因素，不把示例变成所有题材的固定要求。反馈说明以实际改动及作用为主，视觉结论遵循 [成品检查](tfr-material-processing.md#保留工程与检查成品)。
 
 ## AI mode
 
-Accept a strict structured object from another AI or pipeline. Require every
-legacy field below; `focus_name` and `focus_description` are the only optional
-fields shown in the base schema. Reject unknown enums, empty required strings,
-and unresolved placeholders instead of inferring them silently.
+接受其他 AI 或流水线提供的 JSON/YAML。保留明确字段，默认推定缺失的创作选项。以下是兼容的完整示例，不要求每个自然任务都提供全部字段：
 
 ```yaml
 mode: ai
-icon_type: focus | idea | technology | other-ui
-style: vanilla | tfr | tno | red-flood
-focus_name: "optional; accepted for layered TFR focus requests"
-focus_description: "optional; accepted for layered TFR focus requests"
-subject: "..."
-symbols: ["..."]
-composition: "..."
-palette: "..."
-mood: "..."
-reuse: prefer | require | forbid
+icon_type: focus
+style: tfr
+focus_name: "恢复生产"
+subject: "以现代机床表现生产恢复"
+symbols: []
+composition: "单台机床作为主视觉"
+palette: "钢灰与暖光"
+mood: "重新运转"
+reuse: prefer
 target_profile:
-  source: project | library_reference | bundled_fallback
-  reference: "relative/inspected asset path, or focus|focus-tfr|idea|technology for bundled_fallback"
+  source: bundled_fallback
+  reference: focus-tfr
 output:
-  basename: "ascii_safe_name"
+  basename: restore-production
   png: true
-  gfx: true | false
-gfx_target: # required only when output.gfx is true
-  mod_root: "confirmed target mod root"
-  sprite_name: "GFX_unique_name"
-  texture_path: "gfx/interface/.../icon.png"
-  definition_path: "interface/mod_prefix_icons.gfx"
+  gfx: false
 ```
 
-Layered TFR AI input may also provide a strict `themes` array using the schema
-in [layered-tfr.md](layered-tfr.md). These three additions are optional so
-existing AI briefs remain valid. When both `focus_name` and
-`focus_description` are absent, derive themes only from the existing `subject`,
-`symbols`, and `composition` fields. When `themes` is present, preserve it and
-reject invalid or ungrounded entries instead of silently rewriting them.
-Always normalize a valid incoming AI object into the complete resolved
-`brief.json` contract in `layered-tfr.md`; incoming optional fields do not make
-resolved brief fields optional.
+可选的 `focus_description`、`themes` 和 `effects` 沿用分层流程字段。`themes` 是素材清单，不是固定的主题分类，允许单项或更多项。输入已明确拆分时尊重它；需要修改用户明确指定的内容时说明影响。普通布局和修整可持续迭代，同时更新内部记录。
 
-Preserve all valid AI fields verbatim. Apply only technical constraints required by the resolved profile, transparency, HOI4 paths, and PNG/GFX wiring. Return a field-level error when the object is incomplete.
+调用方明确要求严格契约时，按其契约校验必要字段、类型与枚举，返回具体字段错误，不擅自填充。这里区分的是数据接口要求，不是限制 AI 选择构图。旧完整 briefs 仍然可用。
 
-Use `bundled_fallback` only when no target-project or library profile is available. Enforce these cross-field mappings: `idea -> idea`, `technology -> technology`, and `focus -> focus` except that `style=tfr` uses `focus-tfr`. Reject a mismatched profile with a field-level error. `other-ui` still requires target-project or verified library evidence.
+技术值不能任意猜测：profile 与图标类型匹配，尺寸严格按 [icon-types.md](icon-types.md) 的表执行。`focus|focus-tfr|idea` 使用对应规格；表内其他类型通过 `custom` 填入尺寸。未列类型才从同类纹理或 GUI 确定。未知枚举、矛盾的输出地址和未替换占位符需解决后再运行脚本。
 
-When `output.gfx` is `true`, require all four `gfx_target` fields and confirm that `mod_root` is the active target before writing. When it is `false`, omit `gfx_target`. Never infer a sprite name or mod destination in strict AI mode.
+## 输出与内部契约
 
-## Shared output contract
+使用 compositor 时，将输入整理成 [layered-tfr.md](layered-tfr.md) 的完整 `brief.json`。字段完整性、唯一 ID、与 composition 的对应关系属于脚本格式要求；不表示输入方必须亲自填写全部字段。缺失名称/描述用 `null`，设计选择如实注明，实际工具提示词另存 `generation.json`。
 
-Record the resolved brief, reused source paths, authorization state, selected technical profile, final PNG path, and optional GFX snippet. Never hide inferred values.
+需要 GFX 注册时，沿用 `gfx_target.mod_root, sprite_name, texture_path, definition_path`。确认实际目标项目后再写入；严格输入模式按调用方契约要求这些值。未请求注册时只交付图片与工程，不凭空新增游戏定义。
 
-Evidence paths relative to the library root:
-
-- `秋起美术馆/TFR/TFR官方教程及素材合集/TFR 图标教程 Icon Guide CN.docx`
-- `秋起美术馆/TNO/文档类/译文_如何制作tno风格图标（注：可能过时）.docx`
-- `秋起美术馆/赤潮/图标 Icons/赤潮风图标教程 RF Icon Guide CN.docx`
+记录素材来源、实际使用或参考方式、尺寸依据、最终文件与可编辑工程。保留旧版本；不要把构图计划、脚本校验或原料生成标成成品视觉验收。

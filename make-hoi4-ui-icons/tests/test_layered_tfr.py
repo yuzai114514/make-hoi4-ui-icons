@@ -137,7 +137,7 @@ class LayeredTfrTests(unittest.TestCase):
             "icon_type": "focus",
             "profile": "focus-tfr",
             "brief": "brief.json",
-            "canvas": {"width": 180, "height": 150, "safe_bottom": 40},
+            "canvas": {"width": 170, "height": 150, "safe_bottom": 40},
             "themes": [
                 {
                     "id": "strait-geography",
@@ -267,8 +267,8 @@ class LayeredTfrTests(unittest.TestCase):
         output, report_path = self.compose()
         with Image.open(output) as image:
             self.assertEqual(image.mode, "RGBA")
-            self.assertEqual(image.size, (180, 150))
-            self.assertEqual(image.getchannel("A").crop((0, 110, 180, 150)).getextrema()[1], 0)
+            self.assertEqual(image.size, (170, 150))
+            self.assertEqual(image.getchannel("A").crop((0, 110, 170, 150)).getextrema()[1], 0)
         report = json.loads(report_path.read_text(encoding="utf-8"))
         self.assertTrue(report["validation"]["ok"])
         self.assertEqual(report["validation"]["theme_count"], 2)
@@ -281,7 +281,7 @@ class LayeredTfrTests(unittest.TestCase):
             self.assertTrue(path.is_file())
             with Image.open(path) as effect:
                 self.assertEqual(effect.mode, "RGBA")
-                self.assertEqual(effect.size, (180, 150))
+                self.assertEqual(effect.size, (170, 150))
                 self.assertIsNotNone(effect.getchannel("A").getbbox())
         for name in ("layer-map", "light", "dark", "contact-sheet"):
             path = self.root / report["qa"][name]
@@ -298,7 +298,7 @@ class LayeredTfrTests(unittest.TestCase):
             self.assertEqual(material_preview.parent.name, "materials")
             with Image.open(material_preview) as material:
                 self.assertEqual(material.mode, "RGB")
-                self.assertEqual(material.size, (360, 150))
+                self.assertEqual(material.size, (340, 150))
         effect_preview = self.root / report["qa"]["material-effect-radar-approach"]
         self.assertTrue(effect_preview.is_file())
         self.assertEqual(effect_preview.parent.name, "materials")
@@ -320,7 +320,7 @@ class LayeredTfrTests(unittest.TestCase):
         with Image.open(material_path) as material, Image.open(final_path) as final_preview:
             x, y = outline_pixel
             self.assertEqual(material.getpixel((x, y)), (238, 238, 238))
-            self.assertEqual(material.getpixel((x + 180, y)), (22, 24, 28))
+            self.assertEqual(material.getpixel((x + 170, y)), (22, 24, 28))
             self.assertNotEqual(final_preview.getpixel((x, y)), (22, 24, 28))
 
         first_hash = hashlib.sha256(output.read_bytes()).hexdigest()
@@ -371,11 +371,40 @@ class LayeredTfrTests(unittest.TestCase):
         report = json.loads(report_path.read_text(encoding="utf-8"))
         self.assertTrue(all((self.root / path).parent.parent == qa_root for path in report["qa"].values()))
 
-    def test_rejects_single_theme(self) -> None:
+    def test_material_count_follows_composition_needs(self) -> None:
+        original_brief = json.loads((self.root / "brief.json").read_text(encoding="utf-8"))
+        for count in (1, 5):
+            with self.subTest(count=count):
+                spec = self.valid_spec()
+                brief = json.loads(json.dumps(original_brief))
+                material = spec["themes"][0]
+                brief_material = brief["themes"][0]
+                spec["themes"] = []
+                brief["themes"] = []
+                spec["effects"] = []
+                brief["effects"] = []
+                for index in range(count):
+                    material_id = f"material-{index}"
+                    spec["themes"].append({**material, "id": material_id, "boundary": {}})
+                    brief["themes"].append({**brief_material, "id": material_id})
+                self.write_spec(spec)
+                (self.root / "brief.json").write_text(json.dumps(brief), encoding="utf-8")
+                output, report_path = self.compose(overwrite=True)
+                report = json.loads(report_path.read_text(encoding="utf-8"))
+                self.assertEqual(report["validation"]["theme_count"], count)
+                self.assertEqual(report["validation"]["structural_effect_count"], 0)
+                with Image.open(output) as image:
+                    self.assertIsNotNone(image.getchannel("A").getbbox())
+                    self.assertEqual(image.getchannel("A").crop((0, 110, 170, 150)).getextrema(), (0, 0))
+
+    def test_empty_material_list_still_rejected(self) -> None:
+        brief = json.loads((self.root / "brief.json").read_text(encoding="utf-8"))
+        brief["themes"] = []
+        (self.root / "brief.json").write_text(json.dumps(brief), encoding="utf-8")
         spec = self.valid_spec()
-        spec["themes"] = spec["themes"][:1]
+        spec["themes"] = []
         self.write_spec(spec)
-        with self.assertRaisesRegex(ValueError, "two to four"):
+        with self.assertRaisesRegex(ValueError, "at least one"):
             composer.render_spec(self.spec_path, self.root)
 
     def test_spec_paths_are_relative_to_the_spec_directory(self) -> None:
@@ -403,18 +432,81 @@ class LayeredTfrTests(unittest.TestCase):
             "nested-package/layers/themes/geography.png",
         )
 
-    def test_rejects_missing_boundary(self) -> None:
+    def test_processed_material_can_omit_boundary_effects(self) -> None:
         spec = self.valid_spec()
         del spec["themes"][0]["boundary"]
         self.write_spec(spec)
-        with self.assertRaisesRegex(ValueError, "boundary"):
+        _, report, components, _ = composer.render_spec(self.spec_path, self.root)
+        material_components = [c for c in components if c.owner_id == "strait-geography"]
+        self.assertEqual([c.kind for c in material_components], ["theme"])
+        self.assertEqual(report["themes"][0]["boundary"], {})
+
+    def test_outer_glow_is_a_soft_exterior_layer(self) -> None:
+        spec = self.valid_spec()
+        spec["themes"][0]["boundary"] = {"primary": {
+            "type": "outer_glow", "spread": 1, "blur": 2,
+            "color": "#ffb34a", "opacity": 0.8, "blend": "screen"
+        }}
+        self.write_spec(spec)
+        _, report, components, _ = composer.render_spec(self.spec_path, self.root)
+        glow = next(c for c in components if c.owner_id == "strait-geography" and c.role == "outer-glow")
+        base = next(c for c in components if c.owner_id == "strait-geography" and c.kind == "theme")
+        self.assertEqual(glow.blend, "screen")
+        alpha = glow.image.getchannel("A")
+        self.assertGreater(sum(count > 0 for count in alpha.histogram()[1:]), 8)
+        self.assertEqual(alpha.getpixel((52, 45)), 0)
+        self.assertLess(alpha.getbbox()[0], base.image.getchannel("A").getbbox()[0])
+        self.assertEqual(report["validation"]["safe_bottom_alpha_max"], 0)
+        _, path = self.compose()
+        exported = json.loads(path.read_text(encoding="utf-8"))
+        record = next(x for x in exported["layers"] if x["role"] == "outer-glow")
+        self.assertTrue((self.root / record["path"]).is_file())
+
+    def test_outer_glow_validates_parameters_and_bounds(self) -> None:
+        for patch in ({"spread": -1}, {"spread": 21}, {"blur": 0}, {"blur": float("nan")}, {"blend": "invalid"}, {"opacity": 1.1}):
+            spec = self.valid_spec()
+            config = {"type": "outer_glow", "spread": 1, "blur": 2, "color": "#111111", "opacity": 0.8}
+            config.update(patch)
+            spec["themes"][0]["boundary"] = {"primary": config}
+            self.write_spec(spec)
+            with self.subTest(patch=patch), self.assertRaises(ValueError):
+                composer.render_spec(self.spec_path, self.root)
+        config.update({"spread": 1, "blur": 2, "opacity": 0.8})
+        spec["themes"][0]["transform"]["y"] = 95
+        self.write_spec(spec)
+        with self.assertRaisesRegex(ValueError, "exceed content area"):
             composer.render_spec(self.spec_path, self.root)
 
-    def test_rejects_theme_not_grounded_in_brief(self) -> None:
+    def test_optional_effect_slots_and_full_opacity_range(self) -> None:
+        spec = self.valid_spec()
+        spec["themes"][0]["boundary"] = {"support": spec["themes"][0]["boundary"]["support"]}
+        spec["themes"][1]["boundary"] = {}
+        spec["themes"][1]["finish"]["relief"]["opacity"] = 0.7
+        spec["themes"][1]["finish"]["rim"]["opacity"] = 0.8
+        self.write_spec(spec)
+        _, report, components, _ = composer.render_spec(self.spec_path, self.root)
+        self.assertTrue(report["validation"]["ok"])
+        roles = [c.role for c in components if c.kind == "structural-effect"]
+        self.assertEqual(sorted(roles), ["finish-relief", "finish-rim", "shadow"])
+        spec["themes"][1]["finish"]["rim"]["opacity"] = 1.01
+        self.write_spec(spec)
+        with self.assertRaisesRegex(ValueError, "at most 1"):
+            composer.render_spec(self.spec_path, self.root)
+
+    def test_optional_boundary_still_validates_supplied_settings(self) -> None:
+        for boundary in (None, {"primary": None}, {"unknown": {}}, {"primary": {"type": "typo"}}):
+            with self.subTest(boundary=boundary):
+                spec = self.valid_spec()
+                spec["themes"][0]["boundary"] = boundary
+                self.write_spec(spec)
+                with self.assertRaisesRegex(ValueError, "boundary"):
+                    composer.render_spec(self.spec_path, self.root)
+
+    def test_rejects_material_not_declared_in_brief(self) -> None:
         spec = self.valid_spec()
         spec["themes"][1]["id"] = "invented-theme"
         self.write_spec(spec)
-        with self.assertRaisesRegex(ValueError, "not grounded"):
+        with self.assertRaisesRegex(ValueError, "not declared"):
             composer.render_spec(self.spec_path, self.root)
 
     def test_rejects_theme_or_effect_omitted_from_brief_contract(self) -> None:
@@ -496,8 +588,29 @@ class LayeredTfrTests(unittest.TestCase):
         self.make_source(magenta, (255, 0, 255, 255), "line")
         spec = self.valid_spec()
         spec["effects"][0]["source"] = "layers/effects/magenta.png"
+        spec["effects"][0]["chroma_key"] = "magenta"
         self.write_spec(spec)
         with self.assertRaisesRegex(ValueError, "chroma-key-magenta"):
+            composer.render_spec(self.spec_path, self.root)
+
+    def test_different_layer_keys_do_not_ban_the_other_layers_subject_color(self) -> None:
+        spec = self.valid_spec()
+        self.make_source(self.root / spec["themes"][0]["source"], (0, 255, 0, 255), "ellipse")
+        spec["themes"][0]["chroma_key"] = "magenta"
+        self.make_source(self.root / spec["themes"][1]["source"], (255, 0, 255, 255), "rectangle")
+        spec["themes"][1]["chroma_key"] = "green"
+        self.write_spec(spec)
+        image, report, _, _ = composer.render_spec(self.spec_path, self.root)
+        self.assertTrue(report["validation"]["ok"])
+        green, magenta = composer.count_key_colors(image)
+        self.assertGreater(green, 0)
+        self.assertGreater(magenta, 0)
+
+    def test_layer_source_requires_real_transparency(self) -> None:
+        spec = self.valid_spec()
+        Image.new("RGBA", (64, 64), (80, 100, 120, 255)).save(self.root / spec["themes"][0]["source"])
+        self.write_spec(spec)
+        with self.assertRaisesRegex(ValueError, "no fully transparent pixels"):
             composer.render_spec(self.spec_path, self.root)
 
     def test_rejects_empty_source(self) -> None:
@@ -561,7 +674,7 @@ class LayeredTfrTests(unittest.TestCase):
         self.assertEqual(payload["layer_validation"]["theme_count"], 2)
         self.assertGreater(len(payload["layers"]), 2)
 
-        bad = Image.new("RGBA", (180, 150), (0, 0, 0, 0))
+        bad = Image.new("RGBA", (170, 150), (0, 0, 0, 0))
         bad.putpixel((20, 130), (255, 255, 255, 255))
         bad_path = self.root / "bad-safe-bottom.png"
         bad.save(bad_path)
@@ -596,7 +709,7 @@ class LayeredTfrTests(unittest.TestCase):
         self.assertNotEqual(rejected.returncode, 0)
         self.assertFalse(rejected_output.exists())
 
-        faint = Image.new("RGBA", (180, 150), (0, 0, 0, 0))
+        faint = Image.new("RGBA", (170, 150), (0, 0, 0, 0))
         faint.putpixel((20, 20), (255, 255, 255, 255))
         faint.putpixel((20, 130), (255, 255, 255, 1))
         faint_path = self.root / "faint-safe-bottom.png"
@@ -660,7 +773,7 @@ class LayeredTfrTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         with Image.open(final) as image:
-            self.assertEqual(image.size, (100, 88))
+            self.assertEqual(image.size, (170, 150))
             self.assertEqual(image.mode, "RGBA")
         self.assertEqual(
             json.loads(manifest.read_text(encoding="utf-8"))["layout"], "fit-content"

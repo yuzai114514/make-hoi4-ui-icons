@@ -379,18 +379,47 @@ def infer_creator(entry: FileEntry) -> str:
     return "unknown"
 
 
-def infer_reuse_policy(entry: FileEntry, creator: str) -> tuple[str, str]:
-    if entry.collection != "素材库":
-        return "unknown", "unknown"
-    if "现成素材" in entry.relative_path.split("/"):
-        return "credit_required", CORE_LICENSE_NOTE
-    return "approved", CORE_LICENSE_NOTE
+def load_permissions_index(path: Path | None) -> dict[str, dict[str, Any]]:
+    """Read a previously reviewed, hash-bound authorization snapshot."""
+    if path is None:
+        return {}
+    permissions: dict[str, dict[str, Any]] = {}
+    for line in path.read_text(encoding="utf-8-sig").splitlines():
+        if not line.strip():
+            continue
+        record = json.loads(line)
+        policy = record.get("reuse_policy")
+        if policy not in {"approved", "credit_required", "forbidden"}:
+            continue
+        source = record.get("relative_path")
+        evidence = record.get("authorization_evidence")
+        content_hash = record.get("content_hash")
+        if not isinstance(source, str) or not isinstance(evidence, str) or not evidence.strip():
+            continue
+        if not isinstance(content_hash, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", content_hash):
+            continue
+        if policy == "credit_required" and record.get("creator", "unknown") in {"", "unknown", None}:
+            continue
+        if source in permissions:
+            raise ValueError(f"duplicate authorization path: {source}")
+        permissions[source] = record
+    return permissions
+
+
+def infer_reuse_policy(
+    entry: FileEntry, creator: str, content_hash: str | None = None,
+    permissions: dict[str, dict[str, Any]] | None = None,
+) -> tuple[str, str]:
+    record = (permissions or {}).get(entry.relative_path)
+    if record and content_hash and record["content_hash"] == content_hash:
+        return record["reuse_policy"], record.get("license_note", "See authorization_evidence")
+    return "unknown", "unknown"
 
 
 def infer_readiness(role: str, reuse_policy: str) -> str:
     if role == "archive":
         return "archive_only"
-    if reuse_policy == "unknown":
+    if reuse_policy in {"unknown", "forbidden"}:
         return "reference_only"
     if role in {"palette", "reference", "tutorial"}:
         return "reference_only"
@@ -445,6 +474,7 @@ def build_record(
     entry: FileEntry,
     aliases: dict[str, Any],
     grouped_entries: dict[tuple[str, str], list[FileEntry]],
+    permissions: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     extension = entry.path.suffix.casefold()
     file_format = extension.lstrip(".") or "none"
@@ -464,7 +494,12 @@ def build_record(
     icon_type = infer_icon_type(entry, aliases)
     role = infer_role(entry, aliases)
     creator = infer_creator(entry)
-    reuse_policy, license_note = infer_reuse_policy(entry, creator)
+    reuse_policy, license_note = infer_reuse_policy(entry, creator, content_hash, permissions)
+    authorization_evidence = None
+    if reuse_policy != "unknown":
+        permission = permissions[entry.relative_path]
+        authorization_evidence = permission["authorization_evidence"]
+        creator = permission.get("creator", creator)
     readiness = infer_readiness(role, reuse_policy)
     paired = grouped_entries[group_key(entry)]
 
@@ -518,6 +553,7 @@ def build_record(
 
     return {
         "alpha": metadata.alpha,
+        "authorization_evidence": authorization_evidence,
         "asset_id": asset_id,
         "collection": entry.collection,
         "content_hash": content_hash,
@@ -646,6 +682,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=default_aliases,
         help=f"Alias JSON path (default: {default_aliases}).",
     )
+    parser.add_argument(
+        "--permissions-index", type=Path,
+        help="Reviewed JSONL with exact paths, hashes and authorization_evidence; new/changed files remain unknown.",
+    )
     return parser.parse_args(argv)
 
 
@@ -655,13 +695,14 @@ def main(argv: list[str] | None = None) -> int:
     if not library_root.is_dir():
         raise SystemExit(f"Library root is not a directory: {library_root}")
     aliases = load_aliases(args.aliases.expanduser().resolve())
+    permissions = load_permissions_index(args.permissions_index)
     entries, excluded, missing, skipped_symlinks = scan_entries(
         library_root, resolved_output_paths(args.output, args.summary)
     )
     grouped: dict[tuple[str, str], list[FileEntry]] = defaultdict(list)
     for entry in entries:
         grouped[group_key(entry)].append(entry)
-    records = [build_record(entry, aliases, grouped) for entry in entries]
+    records = [build_record(entry, aliases, grouped, permissions) for entry in entries]
     records.sort(key=lambda record: (record["relative_path"].casefold(), record["relative_path"]))
     write_jsonl(records, args.output)
     if args.summary is not None:

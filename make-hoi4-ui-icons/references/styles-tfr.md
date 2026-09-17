@@ -1,39 +1,31 @@
-# TFR style
+# TFR 图标风格
 
-Use the target TFR project branch as the primary reference. Use the local guide only when project evidence is absent.
+以同一路线、同一子分支的邻图和官方教程为依据，设计取舍统一见 [国策设计参考](../SKILL.md#国策设计参考)。厚重阴影与外发光、鲜艳渐变、轻微但可见的倒角是风格要点；按素材调整，使其帮助体积和可读性，不为凑齐效果破坏观感。出处与不同教程的尺寸差异见 [官方资料摘记](tfr-guide-notes.md)。
 
-## Direct the image
+**构图可以简单，风格处理应当明确。** 普通照片、绘画素材或简单拼贴也要在实际显示尺寸下呈现上述 TFR 观感。分别评价主题构图和风格加工；构图尚需改善时，也不能将原始素材观感当作风格成品。拼贴与夸张比例均可使用，以官方示例的整体协调和视觉力度为依据，不强制所有图标变成写实场景。
 
-- Use vivid, bright, high-contrast color and an exaggerated modern visual hierarchy.
-- Prefer recognizable contemporary people, objects, buildings, maps, logos, screens, or photographic material.
-- Compose freely on a wide, usually frameless canvas; build a scene or deliberate thumbnail-like montage rather than a small centered emblem.
-- Apply strong depth, shadow, outer glow, lively gradients, and selective neon while preserving subject separation.
-- Soften hard cutout edges and unify all sources through shared light, contrast, and color.
-- Keep a whole focus branch visually coherent in palette, scale, and recurring motifs.
-- Keep critical focus content out of the title-safe area selected by the project profile.
+## 要追求的效果
 
-For TFR national focuses, read [layered-tfr.md](layered-tfr.md) and use the
-layered workflow by default. A narrative effect does not count as a semantic
-theme. Keep theme cutouts independent and add boundary treatments during
-deterministic composition instead of baking every subject into one generated
-scene.
+- **有分量的明暗和体积。** 人物、机器、建筑等素材要有清楚的受光与暗部。以厚重的阴影配合外发光形成分量，倒角轻微但在实际尺寸下可见，避免过厚过硬；单纯给平淡照片加亮边，仍然会像纸片。
+- **鲜明且统一的色彩。** 使用鲜艳的渐变叠加或渐变映射，并调整曝光和饱和度，让画面多彩、通常明亮。配色服务于国家、路线和情绪；允许为题材压暗，但不能整体退回未加工照片或灰暗平淡的色彩。不要把某个示例的粉紫色或某种强度固定成全体 TFR 的标准。
+- **现代拼贴或场景的质感。** 照片与绘画都可作为素材，处理光色和空间关系，使其融入同一画面；构图与素材层数按通用设计参考灵活选择。
+- **缩小后仍能读懂。** 在实际 UI 尺寸下保留清楚的视觉重心、物体轮廓和前后关系。允许有力的光效、阴影与夸张比例，强度由可读性决定。
+- **边缘融入画面。** 用蒙版、局部软擦除和遮挡关系消除生硬截断。金属硬边、人物发丝、地形边缘可以采用不同处理，不必把整层统一羽化。
 
-## Avoid
+通用勋章、花环或固定底框通常不是构图出发点，但有表达作用的徽章、框架或文字仍可使用。也不要把 TFR 简化成“任何素材都加霓虹”或“所有效果都必须很弱”。
 
-- Avoid TNO's globally dark, desaturated finish.
-- Avoid vanilla medal-and-wreath framing as the default composition.
-- Avoid tiny isolated subjects, weak contrast, plastic-looking cutouts, and effects that obscure the icon's meaning.
-- Do not add neon to every layer; use it only to reinforce hierarchy.
-- Avoid bright, heavy outlines around already-readable vehicles or ships; judge separation at 1:1 and keep the outline subordinate to the subject.
+## 用什么流程达到这些效果
 
-## Technical boundary
+具体技法集中在[素材加工方法](tfr-material-processing.md)。原料允许暂时没有这些加工；成品按处理后的视觉结果验收。效果可在单素材、组或最终合成阶段完成，不要求每层重复执行。
 
-The local TFR guide documents focus canvases around `170-210x150`, commonly `180x150`, with roughly `38-40` pixels reserved near the bottom for the focus title. Treat this as a sourced fallback, not a universal override. A target project asset or GUI profile always wins.
+国策图标采用[素材制作与合成流程](layered-tfr.md)：先定粗构图、准备可用素材，再在 Photoshop 中处理质感、图层样式和蒙版，合成后统一调整。
 
-Evidence paths relative to the library root:
+先生成的原料通常保留真实的内部光影，把需要随布局变化的外部投影和发光留到合成时。若素材已经带有合适的效果，可以保留，避免重复叠加。完成度来自逐步检查和修改，不来自一次发送越来越长的禁用词清单。
 
-- `秋起美术馆/TFR/TFR官方教程及素材合集/TFR 图标教程 Icon Guide CN.docx`
-- `秋起美术馆/TFR/TFR官方教程及素材合集/Example icon.png`
-- `秋起美术馆/TFR/TFR官方教程及素材合集/Example icon.psd`
-- `秋起美术馆/TFR/TFR官方教程及素材合集/标准画布大小参考.psd`
-- `秋起美术馆/TFR/素材/效果（用的时候直接放在所有图层的最上面）.psd`
+## 技术边界与适用范围
+
+画布严格按 [尺寸表](icon-types.md)：国策默认 `170×150`，加宽版 `210×150`，底部 `40px` 完全透明。`focus-tfr` 默认用前者，加宽时传 `--width 210`；旧教程尺寸只作历史记录。
+
+标题栏应在预览中显示位置，导出时移除辅助背景。为了保住人物或建筑的大小，可以先对底部做蒙版渐隐；不要只为了留标题空间就把整张主体无限缩小。
+
+这些是**图标**规则。领导人和顾问肖像读取 [肖像制作参考](tfr-portraits.md)，按相邻头像确定裁切和光照。整张 GUI 遵循 [产物范围](../SKILL.md#choose-the-deliverable-first)，面板和控件依据实际 GUI；图标教程只指导其中的插画区域。

@@ -25,16 +25,23 @@ except ImportError as exc:  # pragma: no cover - environment-dependent
 
 
 PROFILES: dict[str, dict[str, int]] = {
-    "focus": {"width": 100, "height": 88, "padding": 4, "safe_bottom": 0},
+    "focus": {
+        "width": 170,
+        "height": 150,
+        "padding": 4,
+        "safe_bottom": 40,
+        "required_safe_bottom": 40,
+        "safe_bottom_alpha_max": 0,
+    },
     "focus-tfr": {
-        "width": 180,
+        "width": 170,
         "height": 150,
         "padding": 6,
         "safe_bottom": 40,
         "required_safe_bottom": 40,
         "safe_bottom_alpha_max": 0,
     },
-    "idea": {"width": 60, "height": 68, "padding": 3, "safe_bottom": 0},
+    "idea": {"width": 68, "height": 68, "padding": 3, "safe_bottom": 0},
     "technology": {"width": 64, "height": 64, "padding": 3, "safe_bottom": 0},
 }
 
@@ -96,6 +103,15 @@ def resolve_profile(args: argparse.Namespace) -> dict[str, int]:
             f"{profile_name} requires --safe-bottom of at least "
             f"{required_safe_bottom}"
         )
+
+    if profile_name in {"focus", "focus-tfr"} and (
+        base["width"] not in {170, 210}
+        or base["height"] != 150
+        or base["safe_bottom"] != 40
+    ):
+        raise ValueError("focus canvas must be 170x150 or 210x150 with safe_bottom 40")
+    if profile_name == "idea" and (base["width"], base["height"]) != (68, 68):
+        raise ValueError("idea canvas must be 68x68")
 
     if base["width"] <= 0 or base["height"] <= 0:
         raise ValueError("width and height must be positive")
@@ -369,7 +385,12 @@ def count_key_colors(
     return green, magenta
 
 
-def validate_image(path: Path, expected: dict[str, int] | None, alpha_threshold: int) -> dict[str, Any]:
+def validate_image(
+    path: Path, expected: dict[str, int] | None, alpha_threshold: int,
+    chroma_key: str = "none",
+) -> dict[str, Any]:
+    if chroma_key not in {"none", "green", "magenta"}:
+        raise ValueError("chroma-key must be none, green, or magenta")
     errors: list[str] = []
     warnings: list[str] = []
     if not path.is_file():
@@ -409,7 +430,7 @@ def validate_image(path: Path, expected: dict[str, int] | None, alpha_threshold:
             warnings.append("visible subject touches a canvas edge; inspect intentional break-frame art")
 
     if minimum > 0:
-        warnings.append("image has no fully transparent pixels")
+        errors.append("image has no fully transparent pixels")
     corners = [
         image.getpixel((0, 0))[3],
         image.getpixel((width - 1, 0))[3],
@@ -422,11 +443,11 @@ def validate_image(path: Path, expected: dict[str, int] | None, alpha_threshold:
     key_green_pixels, key_magenta_pixels = count_key_colors(
         image, alpha_threshold
     )
-    if key_green_pixels:
+    if chroma_key == "green" and key_green_pixels:
         errors.append(
             f"image contains {key_green_pixels} visible chroma-key-green pixels"
         )
-    if key_magenta_pixels:
+    if chroma_key == "magenta" and key_magenta_pixels:
         errors.append(
             f"image contains {key_magenta_pixels} visible chroma-key-magenta pixels"
         )
@@ -460,6 +481,7 @@ def validate_image(path: Path, expected: dict[str, int] | None, alpha_threshold:
         "safe_bottom_alpha_max": safe_bottom_alpha_max,
         "key_green_pixels": key_green_pixels,
         "key_magenta_pixels": key_magenta_pixels,
+        "chroma_key": chroma_key,
         "errors": errors,
         "warnings": warnings,
     }
@@ -502,6 +524,9 @@ def finalize(args: argparse.Namespace) -> int:
     with Image.open(source) as raw:
         raw.load()
         image = raw.convert("RGBA")
+
+    if image.getchannel("A").getextrema()[0] > 0:
+        raise ValueError("input has no fully transparent pixels; remove its background before finalizing")
 
     bbox = alpha_bbox(image, args.alpha_threshold)
     if bbox is None:
@@ -557,11 +582,11 @@ def finalize(args: argparse.Namespace) -> int:
         canvas, args.alpha_threshold
     )
     key_errors: list[str] = []
-    if key_green_pixels:
+    if args.chroma_key == "green" and key_green_pixels:
         key_errors.append(
             f"{key_green_pixels} visible chroma-key-green pixels"
         )
-    if key_magenta_pixels:
+    if args.chroma_key == "magenta" and key_magenta_pixels:
         key_errors.append(
             f"{key_magenta_pixels} visible chroma-key-magenta pixels"
         )
@@ -572,7 +597,7 @@ def finalize(args: argparse.Namespace) -> int:
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     canvas.save(output, format="PNG", optimize=True)
 
-    report = validate_image(output, profile, args.alpha_threshold)
+    report = validate_image(output, profile, args.alpha_threshold, args.chroma_key)
     manifest_report = dict(report)
     manifest_report["path"] = output_manifest_path
     credits = list(dict.fromkeys([*record_credits, *args.credit]))
@@ -582,6 +607,7 @@ def finalize(args: argparse.Namespace) -> int:
         "icon_type": args.icon_type,
         "profile": args.profile,
         "layout": args.layout,
+        "chroma_key": args.chroma_key,
         "user_prompt": args.prompt,
         "normalized_prompt": args.normalized_prompt,
         "source_assets": source_records,
@@ -610,7 +636,7 @@ def finalize(args: argparse.Namespace) -> int:
 
 def validate_command(args: argparse.Namespace) -> int:
     expected = resolve_profile(args) if args.profile else None
-    report = validate_image(Path(args.input).resolve(), expected, args.alpha_threshold)
+    report = validate_image(Path(args.input).resolve(), expected, args.alpha_threshold, args.chroma_key)
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0 if report["ok"] else 1
 
@@ -668,6 +694,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Preserve an exact target-size layered composition or use the legacy trim-and-fit layout.",
     )
     finalize_parser.add_argument("--alpha-threshold", type=int, default=4)
+    finalize_parser.add_argument("--chroma-key", choices=["none", "green", "magenta"], default="none",
+                                 help="Actual removed background color; none for native alpha or reused art.")
     finalize_parser.add_argument("--overwrite", action="store_true")
     finalize_parser.add_argument("--creation-mode", choices=["reused", "generated", "reference_guided"], default="generated")
     finalize_parser.add_argument("--style", default="vanilla")
@@ -692,6 +720,7 @@ def build_parser() -> argparse.ArgumentParser:
     validate_parser.add_argument("--input", required=True)
     add_profile_arguments(validate_parser, optional=True)
     validate_parser.add_argument("--alpha-threshold", type=int, default=4)
+    validate_parser.add_argument("--chroma-key", choices=["none", "green", "magenta"], default="none")
     validate_parser.set_defaults(handler=validate_command)
 
     gfx_parser = subparsers.add_parser("gfx", help="Emit a minimal additive spriteTypes file")

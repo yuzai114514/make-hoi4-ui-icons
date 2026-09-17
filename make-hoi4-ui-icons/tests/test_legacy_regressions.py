@@ -104,14 +104,15 @@ class LegacyWorkflowRegressionTests(unittest.TestCase):
 
     def test_vanilla_tno_and_red_flood_finalization_remain_available(self) -> None:
         cases = [
-            ("vanilla-focus", "vanilla", "focus", ["--profile", "focus"], (100, 88)),
-            ("tno-idea", "tno", "idea", ["--profile", "idea"], (60, 68)),
+            ("vanilla-focus", "vanilla", "focus", ["--profile", "focus"], (170, 150)),
+            ("tfr-wide-focus", "tfr", "focus", ["--profile", "focus-tfr", "--width", "210"], (210, 150)),
+            ("tno-idea", "tno", "idea", ["--profile", "idea"], (68, 68)),
             (
                 "red-flood-focus",
                 "red-flood",
                 "focus",
-                ["--profile", "custom", "--width", "150", "--height", "130"],
-                (150, 130),
+                ["--profile", "focus", "--width", "210"],
+                (210, 150),
             ),
         ]
         for name, style, icon_type, profile_args, expected_size in cases:
@@ -123,6 +124,11 @@ class LegacyWorkflowRegressionTests(unittest.TestCase):
                 with Image.open(output) as image:
                     self.assertEqual(image.mode, "RGBA")
                     self.assertEqual(image.size, expected_size)
+                    if icon_type == "focus":
+                        self.assertEqual(
+                            image.getchannel("A").crop((0, 110, image.width, 150)).getextrema(),
+                            (0, 0),
+                        )
                 payload = json.loads(manifest.read_text(encoding="utf-8"))
                 self.assertEqual(payload["style"], style)
                 self.assertEqual(payload["icon_type"], icon_type)
@@ -219,7 +225,7 @@ class LegacyWorkflowRegressionTests(unittest.TestCase):
             )
 
     def test_key_green_and_magenta_are_rejected_before_output(self) -> None:
-        keyed = Image.new("RGBA", (100, 88), (0, 0, 0, 0))
+        keyed = Image.new("RGBA", (170, 150), (0, 0, 0, 0))
         draw = ImageDraw.Draw(keyed)
         draw.rectangle((10, 10, 40, 40), fill=(80, 100, 120, 255))
         keyed.putpixel((20, 20), (0, 255, 0, 255))
@@ -228,7 +234,7 @@ class LegacyWorkflowRegressionTests(unittest.TestCase):
         keyed.save(keyed_path)
 
         report = finalizer.validate_image(
-            keyed_path, finalizer.PROFILES["focus"], 4
+            keyed_path, finalizer.PROFILES["focus"], 4, "green"
         )
         self.assertFalse(report["ok"])
         self.assertEqual(report["key_green_pixels"], 1)
@@ -248,6 +254,8 @@ class LegacyWorkflowRegressionTests(unittest.TestCase):
                 str(self.root),
                 "--profile",
                 "focus",
+                "--chroma-key",
+                "magenta",
             ],
             capture_output=True,
             text=True,
@@ -257,8 +265,31 @@ class LegacyWorkflowRegressionTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse(output.exists())
 
+    def test_subject_key_colors_are_preserved_when_not_the_removed_background(self) -> None:
+        for color, key in [((0, 255, 0, 255), "magenta"), ((255, 0, 255, 255), "green")]:
+            image = Image.new("RGBA", (170, 150))
+            ImageDraw.Draw(image).rectangle((20, 20, 70, 60), fill=color)
+            image.save(self.source)
+            result, output, manifest = self.run_finalizer(
+                key, "tfr", "focus", ["--profile", "focus", "--chroma-key", key]
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            with Image.open(output) as final:
+                self.assertIn(color, [rgba for _, rgba in final.getcolors(final.width * final.height)])
+            self.assertEqual(json.loads(manifest.read_text())["chroma_key"], key)
+            self.assertTrue(finalizer.validate_image(output, finalizer.PROFILES["focus"], 4, key)["ok"])
+
+    def test_opaque_input_is_rejected_before_padding_can_hide_the_background(self) -> None:
+        Image.new("RGBA", (170, 150), (80, 100, 120, 255)).save(self.source)
+        self.assertFalse(finalizer.validate_image(self.source, finalizer.PROFILES["focus"], 4)["ok"])
+        result, output, manifest = self.run_finalizer("opaque", "vanilla", "focus", ["--profile", "focus"])
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("no fully transparent pixels", result.stderr)
+        self.assertFalse(output.exists())
+        self.assertFalse(manifest.exists())
+
     def test_focus_tfr_safe_bottom_cannot_be_reduced(self) -> None:
-        image = Image.new("RGBA", (180, 150), (0, 0, 0, 0))
+        image = Image.new("RGBA", (170, 150), (0, 0, 0, 0))
         image.putpixel((20, 20), (255, 255, 255, 255))
         image.putpixel((20, 130), (255, 80, 80, 255))
         source = self.root / "unsafe-focus-tfr.png"
@@ -347,6 +378,30 @@ class LegacyWorkflowRegressionTests(unittest.TestCase):
         self.assertEqual(
             results[0]["path"], "素材库/国策图标/Modern Fleet.png"
         )
+        self.assertEqual(results[0]["authorization"], "unknown")
+        self.assertEqual(results[0]["recommended_use"], "reference")
+
+        # A reviewed exact-file snapshot authorizes the original content only.
+        record = next(json.loads(line) for line in index.read_text(encoding="utf-8").splitlines()
+                      if json.loads(line)["relative_path"].endswith("Modern Fleet.png"))
+        record.update(reuse_policy="approved", authorization_evidence="User permission for this file", license_note="approved")
+        permissions = self.root / "permissions.jsonl"
+        permissions.write_text(json.dumps(record), encoding="utf-8")
+        command = [sys.executable, str(BUILD_INDEX_PATH), "--library-root", str(library),
+                   "--output", str(index), "--permissions-index", str(permissions)]
+        approved = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", env=utf8_env)
+        self.assertEqual(approved.returncode, 0, approved.stderr)
+        self.assertEqual(json.loads(index.read_text(encoding="utf-8").splitlines()[0])["reuse_policy"], "approved")
+        # New neighbors and modified bytes cannot inherit the old approval.
+        with Image.open(self.source) as source:
+            source.save(icon_dir / "New Fleet.png")
+            changed = source.copy()
+            changed.putpixel((20, 20), (90, 80, 70, 255))
+            changed.save(library_icon)
+        changed_build = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", env=utf8_env)
+        self.assertEqual(changed_build.returncode, 0, changed_build.stderr)
+        changed_records = [json.loads(line) for line in index.read_text(encoding="utf-8").splitlines()]
+        self.assertTrue(all(row["reuse_policy"] == "unknown" for row in changed_records))
 
 
 if __name__ == "__main__":
