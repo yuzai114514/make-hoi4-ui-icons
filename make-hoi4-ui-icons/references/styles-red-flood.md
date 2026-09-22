@@ -2,7 +2,7 @@
 
 Identify the target tree and Red Flood substyle first. Default to the current mainstream approach described by the local guide; use early or Insmarechale variants only when requested or proven by neighboring assets.
 
-For focuses, use the shared [design references](../SKILL.md#国策设计参考); adapt the following options to the route and node.
+For focuses, use the shared [design references](focus-design.md); adapt the following options to the route and node.
 
 ## Direct the image
 

@@ -1,4 +1,4 @@
 interface:
   display_name: "HOI4 UI 图标工坊"
-  short_description: "检索、复用并生成原版、TFR、TNO 与赤潮风格的 HOI4 UI 图标"
+  short_description: "制作与修改 HOI4 图标、素材及肖像，完成构图、加工和成品质检"
   default_prompt: "使用 $make-hoi4-ui-icons 生成一枚 TNO 风格的国家精神图标：破碎齿轮压在改革文件上。"

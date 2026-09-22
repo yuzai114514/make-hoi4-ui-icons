@@ -2,7 +2,7 @@
 
 Use the target project's vanilla-era examples first. Treat the local library as composition evidence, not as a license to redistribute it.
 
-For focuses, use the shared [design references](../SKILL.md#国策设计参考); the motifs below are options for expressing the theme.
+For focuses, use the shared [design references](focus-design.md); the motifs below are options for expressing the theme.
 
 ## Direct the image
 

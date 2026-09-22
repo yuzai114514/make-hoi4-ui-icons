@@ -15,9 +15,9 @@
 - 默认 `reuse=prefer`，尊重用户要求的 `require|forbid`。
 - 技术尺寸按 [icon-types.md](icon-types.md) 的优先级解析；只有会实质改变任务的问题或无法解决的矛盾才需要澄清。
 
-国策的主题表达、分层、文字和邻图协调统一见 [国策设计参考](../SKILL.md#国策设计参考)；TFR 制作流程见 [layered-tfr.md](layered-tfr.md)。素材的 `evidence` 可写用户原意、参考依据或设计理由，不把每个艺术选择当成需要用户授权的新增叙事。
+国策的主题表达、分层、文字和邻图协调统一见 [国策设计参考](focus-design.md)；TFR 制作流程见 [layered-tfr.md](layered-tfr.md)。素材的 `evidence` 可写用户原意、参考依据或设计理由，不把每个艺术选择当成需要用户授权的新增叙事。
 
-收到审美反馈时，先将其转成画面中可检查的问题，再选择修改方法。例如“没有力量感”可检查姿态、受力方向、接触点、明暗结构和动作后果，不能直接等同于增加锐化、亮度或发光。结合当前图像判断相关因素，不把示例变成所有题材的固定要求。反馈说明以实际改动及作用为主，视觉结论遵循 [成品检查](tfr-material-processing.md#保留工程与检查成品)。
+收到审美反馈时，先将其转成画面中可检查的问题，再选择修改方法。例如“没有力量感”可检查姿态、受力方向、接触点、明暗结构和动作后果，不能直接等同于增加锐化、亮度或发光。结合当前图像判断相关因素，不把示例变成所有题材的固定要求。反馈说明以实际改动及作用为主，视觉结论遵循 [成品检查](acceptance.md)。
 
 ## AI mode
 
@@ -51,7 +51,7 @@ output:
 
 ## 输出与内部契约
 
-使用 compositor 时，将输入整理成 [layered-tfr.md](layered-tfr.md) 的完整 `brief.json`。字段完整性、唯一 ID、与 composition 的对应关系属于脚本格式要求；不表示输入方必须亲自填写全部字段。缺失名称/描述用 `null`，设计选择如实注明，实际工具提示词另存 `generation.json`。
+使用 compositor 时，将输入整理成 [compositor-schema.md](compositor-schema.md) 的完整 `brief.json`。字段完整性、唯一 ID、与 composition 的对应关系属于脚本格式要求；不表示输入方必须亲自填写全部字段。缺失名称/描述用 `null`，设计选择如实注明，实际工具提示词另存 `generation.json`。
 
 需要 GFX 注册时，沿用 `gfx_target.mod_root, sprite_name, texture_path, definition_path`。确认实际目标项目后再写入；严格输入模式按调用方契约要求这些值。未请求注册时只交付图片与工程，不凭空新增游戏定义。
 

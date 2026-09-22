@@ -2,7 +2,7 @@
 
 Inspect the target TNO version and branch before applying this guide. The local translated guide is explicitly marked as possibly outdated.
 
-For focuses, use the shared [design references](../SKILL.md#国策设计参考) for composition, material layers, lettering, and variation within a branch.
+For focuses, use the shared [design references](focus-design.md) for composition, material layers, lettering, and variation within a branch.
 
 ## Direct the image
 
